@@ -11,6 +11,13 @@ const execa = require('execa');
 
 const { logger } = require('strapi-utils');
 const strapi = require('../index');
+const inspector = require('inspector');
+
+// Disconnect from the inspector whenever a cluster is forked,
+// this allows the new fork to reconnect to the same inspector window
+cluster.on('fork', (worker) => {
+  inspector.close()
+});
 
 /**
  * `$ strapi develop`
@@ -24,6 +31,13 @@ module.exports = async function({ build, watchAdmin }) {
   const serveAdminPanel = config.get('server.admin.serveAdminPanel', true);
 
   const buildExists = fs.existsSync(path.join(dir, 'build'));
+  
+  // Ensure each time a cluster is forked that it reuses the same debug port
+  // by default, each worker gets a new port which breaks inspector
+  cluster.setupMaster && cluster.setupMaster({
+    inspectPort: process.debugPort
+  });
+  
   // Don't run the build process if the admin is in watch mode
   if (build && !watchAdmin && serveAdminPanel && !buildExists) {
     try {
